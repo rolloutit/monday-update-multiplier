@@ -7,7 +7,7 @@ provider:
   name: aws
   runtime: python3.11
   region: eu-central-1
-  stage: dev
+  stage: ${opt:stage, 'dev'}
 
 functions:
   mondayUpdateMultiplier:

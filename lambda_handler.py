@@ -24,7 +24,7 @@ def lambda_handler(event, context):
         body = json.loads(event["body"])
     except json.JSONDecodeError as e:
         # Log and return error if JSON is invalid
-        logger.error(f"Error decoding JSON: {e}")
+        logger.error("Error decoding JSON: %s", e)
         return {"statusCode": 400, "body": "Invalid JSON"}
 
     # Log the received JSON payload for debugging
@@ -45,9 +45,9 @@ def lambda_handler(event, context):
 
         # Fetch item information from monday.com using the item's ID
         item_info = query_item_info(item_id)
-        logger.info(f"Item info: {item_info}")
+        logger.info("Item info: %s", item_info)
         if "error" in item_info:
-            logger.error(f"Error fetching item info: {item_info['error']}")
+            logger.error("Error fetching item info: %s", item_info["error"])
             return {"statusCode": 500, "body": item_info["error"]}
         # Extract relevant information from the item data
         try:
@@ -56,7 +56,7 @@ def lambda_handler(event, context):
             column_values = item_info["data"]["items"][0]["column_values"]
         except KeyError as e:
             # Log and return error if parsing item info fails
-            logger.error(f"Error parsing item info: {e}")
+            logger.error("Error parsing item info: %s", e)
             return {"statusCode": 500, "body": f"Error parsing item info: {e}"}
         # Generate update text for the connected board's update
         update_text = create_update_text(
@@ -66,15 +66,16 @@ def lambda_handler(event, context):
         connected_board_found = False
         for column in column_values:
             if column["type"] == "mirror" and column["display_value"]:
-                # There can be multiple connected items from the same board, so we need to loop through each one
+                # There can be multiple connected items from the same board,
+                # so we need to loop through each one
                 connected_item_id_list = column["display_value"].split(",")
-                logger.info(f"Connected board IDs: {connected_item_id_list}")
+                logger.info("Connected board item IDs: %s", connected_item_id_list)
                 for connected_item_id in connected_item_id_list:
                     # Create an update in the connected board
                     response = create_update(connected_item_id, update_text)
                     if "error" in response:
                         # Log and return error if creating update fails
-                        logger.error(f"Error creating update: {response['error']}")
+                        logger.error("Error creating update: %s", response["error"])
                     else:
                         connected_board_found = True
                         logger.info("Update created in connected board")
@@ -108,14 +109,16 @@ def make_api_request(url, query, variables, headers):
         else:
             # Log error details if the response status code indicates a failure
             logger.error(
-                f"API request failed with status code {response.status_code}: {response.text}"
+                "API request failed with status code %s: %s",
+                response.status_code,
+                response.text,
             )
             return {
                 "error": f"API request failed with status code {response.status_code}"
             }
     except requests.RequestException as e:
         # Log exception details if the request fails
-        logger.error(f"API request resulted in an exception: {e}")
+        logger.error("API request resulted in an exception: %s", e)
         return {"error": str(e)}
 
 
@@ -179,7 +182,8 @@ def create_update(item_id, update_text):
 # Function to fetch item information from Monday.com
 def query_item_info(item_id):
     """
-    Fetches item information from monday.com using the GraphQL API v2 and returns it as a JSON object.
+    Fetches item information from monday.com
+    using the GraphQL API v2 and returns it as a JSON object.
     """
     # Define the GraphQL query
     query = """
