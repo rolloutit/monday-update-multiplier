@@ -1,0 +1,30 @@
+org: sziben
+app: monday-automations
+service: monday-update-multiplier
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: eu-central-1
+  stage: dev
+
+functions:
+  mondayUpdateMultiplier:
+    handler: lambda_handler.lambda_handler
+    environment: ${file(env.json)}
+    timeout: 15
+    memorySize: 128
+    events:
+      - http:
+          path: /monday-gateway
+          method: any
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
+
+custom:
+  pythonRequirements:
+    layer: true
+
+plugins:
+  - serverless-python-requirements

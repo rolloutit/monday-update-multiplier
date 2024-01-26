@@ -1,0 +1,7 @@
+python_venv
+.env
+.serverless
+env.json
+requirements.txt
+.DS_Store
+```
