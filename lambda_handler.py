@@ -4,7 +4,7 @@ import logging
 import requests
 
 
-# Configure logging
+# Set up logging for debugging and monitoring purposes
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -15,17 +15,22 @@ MONDAY_API_VERSION = os.environ["MONDAY_API_VERSION"]
 
 
 def lambda_handler(event, context):
-    # Parse the incoming JSON payload from the webhook
+    """
+    The main handler for the AWS Lambda function.
+    Processes incoming webhook events, interacts with Monday.com API, and logs relevant information.
+    """
+    # Attempt to parse the JSON payload from the webhook
     try:
         body = json.loads(event["body"])
     except json.JSONDecodeError as e:
+        # Log and return error if JSON is invalid
         logger.error(f"Error decoding JSON: {e}")
         return {"statusCode": 400, "body": "Invalid JSON"}
 
-    # Log the entire JSON body
+    # Log the received JSON payload for debugging
     logger.info("Received JSON payload: %s", body)
 
-    # Handle the challenge
+    # Respond to Monday.com webhook challenge for verification
     if "challenge" in body:
         return {
             "statusCode": 200,
@@ -33,50 +38,59 @@ def lambda_handler(event, context):
             "body": json.dumps({"challenge": body["challenge"]}),
         }
 
-    # Handle the event
+    # Process the event data if present
     if "event" in body:
         webhook_event = body["event"]
         item_id = webhook_event["pulseId"]
 
-        # Fetch board information from monday.com
-        board_info = query_board_info(item_id)
-        logger.info(f"Board info: {board_info}")
-        if "error" in board_info:
-            logger.error(f"Error fetching board info: {board_info['error']}")
-            return {"statusCode": 500, "body": board_info["error"]}
+        # Fetch item information from monday.com using the item's ID
+        item_info = item_info(item_id)
+        logger.info(f"Board info: {item_info}")
+        if "error" in item_info:
+            logger.error(f"Error fetching board info: {item_info['error']}")
+            return {"statusCode": 500, "body": item_info["error"]}
+        # Extract relevant information from the item data
         try:
-            item_name = board_info["data"]["items"][0]["name"]
-            username = board_info["data"]["me"]["name"]
-            column_values = board_info["data"]["items"][0]["column_values"]
+            item_name = item_info["data"]["items"][0]["name"]
+            username = item_info["data"]["me"]["name"]
+            column_values = item_info["data"]["items"][0]["column_values"]
         except KeyError as e:
+            # Log and return error if parsing item info fails
             logger.error(f"Error parsing board info: {e}")
             return {"statusCode": 500, "body": f"Error parsing board info: {e}"}
-
+        # Generate update text for the connected board's update
         update_text = create_update_text(
             item_name, username, column_values, webhook_event["textBody"]
         )
+        # Create an update in the connected board if it exists
         connected_board_found = False
         for column in column_values:
             if column["type"] == "mirror" and column["display_value"]:
                 connected_item_id = column["display_value"]
                 response = create_update(connected_item_id, update_text)
                 if "error" in response:
+                    # Log and return error if creating update fails
                     logger.error(f"Error creating update: {response['error']}")
                 else:
                     connected_board_found = True
                     logger.info("Update created in connected board")
         if not connected_board_found:
+            # Log if no connected board is found for updates
             logger.info("No connected board found")
-
-        return {"statusCode": 200, "body": json.dumps(board_info)}
+        # Return the item info for debugging
+        return {"statusCode": 200, "body": json.dumps(item_info)}
 
     # Log an error if neither challenge nor event is found
     logger.error("No challenge or event field found in the received JSON payload")
     return {"statusCode": 400, "body": "No challenge or event field found"}
 
 
-# Helper function to handle API requests
+# Helper function to handle API requests to Monday.com
 def make_api_request(url, query, variables, headers):
+    """
+    Sends a POST request to the specified URL with given query and variables.
+    Handles response and errors for API interactions.
+    """
     try:
         response = requests.post(
             url,
@@ -84,9 +98,11 @@ def make_api_request(url, query, variables, headers):
             headers=headers,
             timeout=30,
         )
+        # Check if the response is successful
         if response.status_code == 200:
             return response.json()
         else:
+            # Log error details if the response status code indicates a failure
             logger.error(
                 f"API request failed with status code {response.status_code}: {response.text}"
             )
@@ -94,12 +110,21 @@ def make_api_request(url, query, variables, headers):
                 "error": f"API request failed with status code {response.status_code}"
             }
     except requests.RequestException as e:
+        # Log exception details if the request fails
         logger.error(f"API request resulted in an exception: {e}")
         return {"error": str(e)}
 
 
+# Helper function to create update text for connected board
 def create_update_text(item_name, username, column_values, update_message):
+    """
+    Constructs a formatted text string based on item details and update message.
+    This text is used for updates in connected boards on Monday.com.
+    """
     connected_boards_dict = {}
+    # Loop through each column's values to build a dictionary of connected boards and their values
+    # The keys are the connected board's column titles and
+    # the values are the connected board's display values (The name of the connected board item)
     for single_column in column_values:
         if single_column["column"]["type"] == "board_relation":
             connected_boards_dict[single_column["column"]["title"]] = single_column[
@@ -114,13 +139,18 @@ def create_update_text(item_name, username, column_values, update_message):
         if value:
             update_text += f"{category}: {value}\n"
 
-    # Append the custom update message
+    # Append the custom update message received from the webhook
     update_text += f"Message: {update_message}\n"
 
     return update_text
 
 
-def create_update(item_id, text):
+# Function to create an update in a specific item on Monday.com
+def create_update(item_id, update_text):
+    """
+    Executes a GraphQL mutation to create an update in a specific item on Monday.com.
+    Takes the item ID and the update text as input.
+    """
     query = """
     mutation ($itemId: ID!, $text: String!) {
         create_update (item_id: $itemId, body: $text) {
@@ -129,7 +159,7 @@ def create_update(item_id, text):
     }
     """
     # variables = {"boardId": board_id, "itemId": item_id}
-    variables = {"itemId": item_id, "text": text}
+    variables = {"itemId": item_id, "text": update_text}
 
     # Set up the request headers
     headers = {
@@ -142,9 +172,10 @@ def create_update(item_id, text):
     return make_api_request(MONDAY_API_URL, query, variables, headers)
 
 
-def query_board_info(item_id):
+# Function to fetch item information from Monday.com
+def item_info(item_id):
     """
-    Fetches board information from monday.com using the GraphQL API v2 and returns it as a JSON object.
+    Fetches item information from monday.com using the GraphQL API v2 and returns it as a JSON object.
     """
     # Define the GraphQL query
     query = """
