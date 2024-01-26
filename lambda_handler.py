@@ -44,10 +44,10 @@ def lambda_handler(event, context):
         item_id = webhook_event["pulseId"]
 
         # Fetch item information from monday.com using the item's ID
-        item_info = item_info(item_id)
-        logger.info(f"Board info: {item_info}")
+        item_info = query_item_info(item_id)
+        logger.info(f"Item info: {item_info}")
         if "error" in item_info:
-            logger.error(f"Error fetching board info: {item_info['error']}")
+            logger.error(f"Error fetching item info: {item_info['error']}")
             return {"statusCode": 500, "body": item_info["error"]}
         # Extract relevant information from the item data
         try:
@@ -56,8 +56,8 @@ def lambda_handler(event, context):
             column_values = item_info["data"]["items"][0]["column_values"]
         except KeyError as e:
             # Log and return error if parsing item info fails
-            logger.error(f"Error parsing board info: {e}")
-            return {"statusCode": 500, "body": f"Error parsing board info: {e}"}
+            logger.error(f"Error parsing item info: {e}")
+            return {"statusCode": 500, "body": f"Error parsing item info: {e}"}
         # Generate update text for the connected board's update
         update_text = create_update_text(
             item_name, username, column_values, webhook_event["textBody"]
@@ -66,14 +66,18 @@ def lambda_handler(event, context):
         connected_board_found = False
         for column in column_values:
             if column["type"] == "mirror" and column["display_value"]:
-                connected_item_id = column["display_value"]
-                response = create_update(connected_item_id, update_text)
-                if "error" in response:
-                    # Log and return error if creating update fails
-                    logger.error(f"Error creating update: {response['error']}")
-                else:
-                    connected_board_found = True
-                    logger.info("Update created in connected board")
+                # There can be multiple connected items from the same board, so we need to loop through each one
+                connected_item_id_list = column["display_value"].split(",")
+                logger.info(f"Connected board IDs: {connected_item_id_list}")
+                for connected_item_id in connected_item_id_list:
+                    # Create an update in the connected board
+                    response = create_update(connected_item_id, update_text)
+                    if "error" in response:
+                        # Log and return error if creating update fails
+                        logger.error(f"Error creating update: {response['error']}")
+                    else:
+                        connected_board_found = True
+                        logger.info("Update created in connected board")
         if not connected_board_found:
             # Log if no connected board is found for updates
             logger.info("No connected board found")
@@ -173,7 +177,7 @@ def create_update(item_id, update_text):
 
 
 # Function to fetch item information from Monday.com
-def item_info(item_id):
+def query_item_info(item_id):
     """
     Fetches item information from monday.com using the GraphQL API v2 and returns it as a JSON object.
     """
