@@ -146,6 +146,8 @@ Replace <stage-name> with your desired stage, such as dev or prod.
 - `create_update_text(item_name, username, column_values, update_message)`: Constructs a formatted text string for updates in connected boards.
 - `create_update(item_id, update_text)`: Executes a GraphQL mutation to create an update in a specific item on Monday.com.
 - `query_item_info(item_id)`: Fetches item information from Monday.com using GraphQL.
+- `query_user_info()`: Fetches information of all users from monday.com using the GraphQL API v2 and returns it as a JSON object.
+- `get_user_name(user_info, user_id)`: Returns the name of a user from their ID. Returns None if no user with the given ID is found.
 
 ## Usage
 
