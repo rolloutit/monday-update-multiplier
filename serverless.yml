@@ -9,6 +9,21 @@ provider:
   region: eu-central-1
   stage: ${opt:stage, 'dev'}
 
+  # Define the resource policy
+  apiGateway:
+    resourcePolicy:
+      - Effect: "Allow"
+        Principal: "*"
+        Action: "execute-api:Invoke"
+        Resource:
+          - "execute-api:/*/*/*"
+        Condition:
+          IpAddress:
+            aws:SourceIp:
+              - "82.115.214.0/24"
+              - "185.66.202.0/23"
+              - "185.237.4.0/22"
+
 functions:
   mondayUpdateMultiplier:
     handler: lambda_handler.lambda_handler
@@ -21,7 +36,6 @@ functions:
           method: any
     layers:
       - Ref: PythonRequirementsLambdaLayer
-
 custom:
   pythonRequirements:
     layer: true

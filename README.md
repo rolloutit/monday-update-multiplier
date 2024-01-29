@@ -1,101 +1,118 @@
-<!--
-title: 'AWS Simple HTTP Endpoint example in Python'
-description: 'This template demonstrates how to make a simple HTTP API with Python running on AWS Lambda and API Gateway using the Serverless Framework.'
-layout: Doc
-framework: v3
-platform: AWS
-language: python
-authorLink: 'https://github.com/serverless'
-authorName: 'Serverless, inc.'
-authorAvatar: 'https://avatars1.githubusercontent.com/u/13742415?s=200&v=4'
--->
+# AWS Lambda Python Script for Monday.com Integration
 
-# Serverless Framework Python HTTP API on AWS
+This repository contains a Python script and Serverless Framework configuration for an AWS Lambda function. The function is designed to interact with Monday.com via webhooks and the Monday.com GraphQL API. It processes incoming webhook events, updates items on Monday.com, and logs relevant information for efficient monitoring and debugging.
 
-This template demonstrates how to make a simple HTTP API with Python running on AWS Lambda and API Gateway using the Serverless Framework.
+## Features
 
-This template does not include any kind of persistence (database). For more advanced examples, check out the [serverless/examples repository](https://github.com/serverless/examples/)  which includes DynamoDB, Mongo, Fauna and other examples.
+- **Webhook Processing**: Handles incoming JSON payloads from Monday.com webhooks.
+- **Challenge Response**: Responds to Monday.com webhook challenges for verification.
+- **Error Handling**: Robust error handling for JSON decoding and API requests.
+- **Logging**: Detailed logging for debugging and monitoring.
+- **Creating Updates**: Generates and posts updates to connected boards on Monday.com.
+
+## Serverless Framework Configuration
+
+The Lambda function is configured and deployed using the Serverless Framework. Here's an overview of the `serverless.yml` configuration:
+
+```yml
+org: org-name
+app: app-name
+service: monday-update-multiplier
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: eu-central-1 #your aws region
+  stage: ${opt:stage, 'dev'}
+
+functions:
+  mondayUpdateMultiplier:
+    handler: lambda_handler.lambda_handler
+    environment: ${file(env.json)}
+    timeout: 15
+    memorySize: 128
+    events:
+      - http:
+          path: /monday-gateway
+          method: any
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
+
+custom:
+  pythonRequirements:
+    layer: true
+
+plugins:
+  - serverless-python-requirements
+```
+
+## Configuration
+
+Set up the following environment variables in `env.json`:
+
+- `MONDAY_API_KEY`: Your API key for authentication with Monday.com.
+- `MONDAY_API_URL`: The URL endpoint for Monday.com's API.
+- `MONDAY_API_VERSION`: The version of the Monday.com API you are targeting.
+
+## Deployment
+
+To deploy the function, ensure you have Serverless Framework installed and configured. Then, run the following command:
+
+```bash
+serverless deploy --stage <stage-name>
+```
+
+Replace <stage-name> with your desired stage, such as dev or prod.
+
+## Main Components
+
+### Lambda Handler
+
+- `lambda_handler(event, context)`: The main function AWS Lambda calls when the script is executed. It parses the incoming webhook event and processes it accordingly.
+
+### Helper Functions
+
+- `make_api_request(url, query, variables, headers)`: Sends POST requests to the Monday.com API and handles responses and errors.
+- `create_update_text(item_name, username, column_values, update_message)`: Constructs a formatted text string for updates in connected boards.
+- `create_update(item_id, update_text)`: Executes a GraphQL mutation to create an update in a specific item on Monday.com.
+- `query_item_info(item_id)`: Fetches item information from Monday.com using GraphQL.
 
 ## Usage
 
-### Deployment
+1. **Deploy the script using Serverless Framework** to your AWS Lambda environment.
+2. **Configure a webhook in Monday.com** to point to the deployed Lambda function's HTTP endpoint.
+3. **Trigger the webhook** to process events, which will log information and interact with Monday.com based on the configuration.
 
-```
-$ serverless deploy
-```
+## Logging
 
-After deploying, you should see output similar to:
+Logs are crucial for understanding the function's behavior. The script logs:
 
-```bash
-Deploying aws-python-http-api-project to stage dev (us-east-1)
+- Received webhook payload.
+- Results of API requests.
+- Detailed error messages in case of failures.
 
-✔ Service deployed to stack aws-python-http-api-project-dev (140s)
+## Error Handling
 
-endpoint: GET - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/
-functions:
-  hello: aws-python-http-api-project-dev-hello (2.3 kB)
-```
+The script has robust error handling for:
 
-_Note_: In current form, after deployment, your API is public and can be invoked by anyone. For production deployments, you might want to configure an authorizer. For details on how to do that, refer to [http event docs](https://www.serverless.com/framework/docs/providers/aws/events/apigateway/).
+- JSON decoding errors.
+- API request failures.
+- Parsing item information from the response.
 
-### Invocation
+## Security Notes
 
-After successful deployment, you can call the created application via HTTP:
+- Ensure that the `MONDAY_API_KEY` is securely stored and not exposed.
+- Regularly review and update IAM roles and permissions associated with the Lambda function.
 
-```bash
-curl https://xxxxxxx.execute-api.us-east-1.amazonaws.com/
-```
+## Contributions
 
-Which should result in response similar to the following (removed `input` content for brevity):
+Contributions are welcome. Please open an issue or submit a pull request with your suggested changes or improvements.
 
-```json
-{
-  "message": "Go Serverless v3.0! Your function executed successfully!",
-  "input": {
-    ...
-  }
-}
-```
+## License
 
-### Local development
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-You can invoke your function locally by using the following command:
+---
 
-```bash
-serverless invoke local --function hello
-```
-
-Which should result in response similar to the following:
-
-```
-{
-  "statusCode": 200,
-  "body": "{\n  \"message\": \"Go Serverless v3.0! Your function executed successfully!\",\n  \"input\": \"\"\n}"
-}
-```
-
-Alternatively, it is also possible to emulate API Gateway and Lambda locally by using `serverless-offline` plugin. In order to do that, execute the following command:
-
-```bash
-serverless plugin install -n serverless-offline
-```
-
-It will add the `serverless-offline` plugin to `devDependencies` in `package.json` file as well as will add it to `plugins` in `serverless.yml`.
-
-After installation, you can start local emulation with:
-
-```
-serverless offline
-```
-
-To learn more about the capabilities of `serverless-offline`, please refer to its [GitHub repository](https://github.com/dherault/serverless-offline).
-
-### Bundling dependencies
-
-In case you would like to include 3rd party dependencies, you will need to use a plugin called `serverless-python-requirements`. You can set it up by running the following command:
-
-```bash
-serverless plugin install -n serverless-python-requirements
-```
-
-Running the above will automatically add `serverless-python-requirements` to `plugins` section in your `serverless.yml` file and add it as a `devDependency` to `package.json` file. The `package.json` file will be automatically created if it doesn't exist beforehand. Now you will be able to add your dependencies to `requirements.txt` file (`Pipfile` and `pyproject.toml` is also supported but requires additional configuration) and they will be automatically injected to Lambda package during build process. For more details about the plugin's configuration, please refer to [official documentation](https://github.com/UnitedIncome/serverless-python-requirements).
+_This README is part of a GitHub Gist detailing an AWS Lambda Python script for integrating with Monday.com._

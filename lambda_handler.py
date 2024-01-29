@@ -28,6 +28,7 @@ def lambda_handler(event, context):
         return {"statusCode": 400, "body": "Invalid JSON"}
 
     # Log the received JSON payload for debugging
+    logger.info("Received JSON event: %s", event)
     logger.info("Received JSON payload: %s", body)
 
     # Respond to Monday.com webhook challenge for verification
