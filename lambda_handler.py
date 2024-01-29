@@ -50,10 +50,17 @@ def lambda_handler(event, context):
         if "error" in item_info:
             logger.error("Error fetching item info: %s", item_info["error"])
             return {"statusCode": 500, "body": item_info["error"]}
+        # Fetch user information from monday.com
+        user_info = query_user_info()
+        logger.info("user info: %s", query_user_info())
         # Extract relevant information from the item data
+        if "error" in user_info:
+            logger.error("Error fetching user info: %s", user_info["error"])
+            return {"statusCode": 500, "body": user_info["error"]}
         try:
             item_name = item_info["data"]["items"][0]["name"]
-            username = item_info["data"]["me"]["name"]
+            user_id = webhook_event["userId"]
+            username = get_user_name(user_info, user_id)
             column_values = item_info["data"]["items"][0]["column_values"]
         except KeyError as e:
             # Log and return error if parsing item info fails
@@ -91,6 +98,19 @@ def lambda_handler(event, context):
     return {"statusCode": 400, "body": "No challenge or event field found"}
 
 
+# Helper function to get the name of a user from their ID
+def get_user_name(user_info, user_id):
+    """
+    Returns the name of a user from their ID.
+    Returns None if no user with the given ID is found.
+    """
+    for user in user_info["data"]["users"]:
+        if int(user["id"]) == user_id:
+            return user["name"]
+
+    return None  # If no user with the given id is found
+
+
 # Helper function to handle API requests to Monday.com
 def make_api_request(url, query, variables, headers):
     """
@@ -98,12 +118,18 @@ def make_api_request(url, query, variables, headers):
     Handles response and errors for API interactions.
     """
     try:
-        response = requests.post(
-            url,
-            json={"query": query, "variables": variables},
-            headers=headers,
-            timeout=30,
-        )
+        if variables:
+            response = requests.post(
+                url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+                timeout=30,
+            )
+
+        else:
+            response = requests.post(
+                url, json={"query": query}, headers=headers, timeout=30
+            )
         # Check if the response is successful
         if response.status_code == 200:
             return response.json()
@@ -180,6 +206,31 @@ def create_update(item_id, update_text):
     return make_api_request(MONDAY_API_URL, query, variables, headers)
 
 
+# Function to fetch information of all users from Monday.com
+def query_user_info():
+    """
+    Fetches information of all users from monday.com
+    using the GraphQL API v2 and returns it as a JSON object.
+    """
+    query = """
+    query {
+        users {
+            id
+            name
+        }
+    }
+    """
+    # Set up the request headers
+    headers = {
+        "Authorization": MONDAY_API_KEY,
+        "Content-Type": "application/json",
+        "API-Version": MONDAY_API_VERSION,
+    }
+
+    # Make the API request
+    return make_api_request(MONDAY_API_URL, query, "", headers)
+
+
 # Function to fetch item information from Monday.com
 def query_item_info(item_id):
     """
@@ -189,9 +240,6 @@ def query_item_info(item_id):
     # Define the GraphQL query
     query = """
     query($ID: [ID!]) {
-        me {
-            name
-        }
         items(ids: $ID) {
             name
             column_values {
