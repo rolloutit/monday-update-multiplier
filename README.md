@@ -23,8 +23,23 @@ frameworkVersion: "3"
 provider:
   name: aws
   runtime: python3.11
-  region: eu-central-1 #your aws region
+  region: eu-central-1
   stage: ${opt:stage, 'dev'}
+
+  # Define the resource policy
+  apiGateway:
+    resourcePolicy:
+      - Effect: "Allow"
+        Principal: "*"
+        Action: "execute-api:Invoke"
+        Resource:
+          - "execute-api:/*/*/*"
+        Condition:
+          IpAddress:
+            aws:SourceIp:
+              - "82.115.214.0/24"
+              - "185.66.202.0/23"
+              - "185.237.4.0/22"
 
 functions:
   mondayUpdateMultiplier:
@@ -38,7 +53,6 @@ functions:
           method: any
     layers:
       - Ref: PythonRequirementsLambdaLayer
-
 custom:
   pythonRequirements:
     layer: true
@@ -77,6 +91,24 @@ Replace <stage-name> with your desired stage, such as dev or prod.
 - `create_update_text(item_name, username, column_values, update_message)`: Constructs a formatted text string for updates in connected boards.
 - `create_update(item_id, update_text)`: Executes a GraphQL mutation to create an update in a specific item on Monday.com.
 - `query_item_info(item_id)`: Fetches item information from Monday.com using GraphQL.
+
+## API Gateway Resource Policy for IP Whitelisting
+
+To enhance the security of the Lambda function, the `serverless.yml` includes an API Gateway resource policy that restricts access to specific IP ranges used by Monday.com. This ensures that only requests from these IPs can reach the function, providing an additional security layer.
+
+### IP Whitelisting Configuration
+
+The configuration allows traffic from the following Monday.com IP ranges:
+
+- `82.115.214.0/24`
+- `185.66.202.0/23`
+- `185.237.4.0/22`
+
+This is defined in the `provider.apiGateway.resourcePolicy` section of the `serverless.yml`, where each IP range is specified under the `Condition.IpAddress.aws:SourceIp` field.
+
+### Deployment
+
+After updating the `serverless.yml` with the IP whitelisting configuration, deploy the changes using:
 
 ## Usage
 
