@@ -1,5 +1,8 @@
 # AWS Lambda Python Script for Monday.com Integration for Update multiplication across multiple Boards
 
+You can read a longer intro with several use-cases in our semi-technical article:
+https://blog.rolloutit.net/monday-system-fine-tuning-with-custom-solutions-8c7dc2b38b07
+
 This repository contains a Python script and Serverless Framework configuration for an AWS Lambda function. The function is designed to interact with Monday.com via webhooks and the Monday.com GraphQL API. It processes incoming webhook events, posts updates based on existing newly posted updates to other items on Monday.com, and logs relevant information for efficient monitoring and debugging.
 
 - Monday API URL: https://api.monday.com/v2/
